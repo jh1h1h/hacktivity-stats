@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  body {
+    background-color: #080b12;
+    color: #c8d8ed;
+    font-family: 'Syne', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track  { background: #0e1420; }
+  ::-webkit-scrollbar-thumb  { background: #1e2a3a; border-radius: 2px; }
+}
+
+@layer utilities {
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 24px rgba(0, 200, 255, 0.12), 0 0 1px rgba(0, 200, 255, 0.4);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(0, 229, 160, 0.15);
+  }
+
+  .card-border {
+    border: 1px solid #1e2a3a;
+    background: linear-gradient(135deg, #0e1420 0%, #0b1018 100%);
+  }
+
+  .accent-bar::before {
+    content: '';
+    display: block;
+    width: 3px;
+    height: 100%;
+    background: #00c8ff;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+}
+
+/* Staggered animation for stat cards */
+.stat-card:nth-child(1) { animation-delay: 0ms;   }
+.stat-card:nth-child(2) { animation-delay: 80ms;  }
+.stat-card:nth-child(3) { animation-delay: 160ms; }
+.stat-card:nth-child(4) { animation-delay: 240ms; }
