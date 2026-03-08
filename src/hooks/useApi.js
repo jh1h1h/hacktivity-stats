@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 
 export function useApi(url) {
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
+  const [data, setData]             = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
 
   const fetchData = useCallback(async () => {
     if (!url) return
@@ -13,6 +14,7 @@ export function useApi(url) {
       const res = await fetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
+      setLastUpdated(new Date())
     } catch (err) {
       setError(err.message)
     } finally {
@@ -21,5 +23,5 @@ export function useApi(url) {
   }, [url])
 
   useEffect(() => { fetchData() }, [fetchData])
-  return { data, loading, error, refetch: fetchData }
+  return { data, loading, error, lastUpdated, refetch: fetchData }
 }

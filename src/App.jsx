@@ -55,12 +55,23 @@ function LiveClock() {
 export default function App() {
   const [active, setActive] = useState('Overview')
 
-  const { data: users, loading: uLoad, error: uErr } = useApi(USERS_URL)
-  const { data: posts, loading: pLoad               } = useApi(POSTS_URL)
-  const { data: todos, loading: tLoad               } = useApi(TODOS_URL)
+  const { data: users, loading: uLoad, error: uErr, lastUpdated: uTime, refetch: refetchUsers } = useApi(USERS_URL)
+  const { data: posts, loading: pLoad,               lastUpdated: pTime, refetch: refetchPosts } = useApi(POSTS_URL)
+  const { data: todos, loading: tLoad,               lastUpdated: tTime, refetch: refetchTodos } = useApi(TODOS_URL)
 
   const loading = uLoad || pLoad || tLoad
   const error   = uErr
+
+  // Most recent successful fetch across all three endpoints
+  const lastUpdated = [uTime, pTime, tTime]
+    .filter(Boolean)
+    .sort((a, b) => b - a)[0] ?? null
+
+  const handleRefresh = () => {
+    refetchUsers()
+    refetchPosts()
+    refetchTodos()
+  }
 
   // ── Aggregations ────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -103,7 +114,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-base grid-bg font-sans overflow-hidden">
-      <Sidebar active={active} setActive={setActive} />
+      <Sidebar active={active} setActive={setActive} loading={loading} lastUpdated={lastUpdated} />
 
       <div className="flex-1 flex flex-col min-w-0">
 
@@ -116,8 +127,9 @@ export default function App() {
           <div className="flex items-center gap-5">
             <LiveClock />
             <button
-              onClick={() => window.location.reload()}
-              className="text-xs font-mono text-dim hover:text-accent transition-colors border border-border hover:border-accent/40 rounded px-3 py-1.5"
+              onClick={handleRefresh}
+              disabled={loading}
+              className="text-xs font-mono text-dim hover:text-accent transition-colors border border-border hover:border-accent/40 rounded px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               ↻ REFRESH
             </button>

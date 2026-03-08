@@ -30,7 +30,12 @@ const NAV = [
   )},
 ]
 
-export default function Sidebar({ active, setActive }) {
+function formatTime(date) {
+  if (!date) return null
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+export default function Sidebar({ active, setActive, loading = false, lastUpdated = null }) {
   return (
     <aside className="w-56 min-h-screen bg-surface border-r border-border flex flex-col shrink-0">
       {/* Brand */}
@@ -42,10 +47,19 @@ export default function Sidebar({ active, setActive }) {
       </div>
 
       {/* Status pill */}
-      <div className="mx-4 mt-4 mb-2 px-3 py-2 rounded border border-green/20 bg-green/5 flex items-center gap-2">
-        <div className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
-        <span className="text-green text-xs font-mono">LIVE · SYNCING</span>
-      </div>
+      {loading ? (
+        <div className="mx-4 mt-4 mb-2 px-3 py-2 rounded border border-green/20 bg-green/5 flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
+          <span className="text-green text-xs font-mono">LIVE · SYNCING</span>
+        </div>
+      ) : (
+        <div className="mx-4 mt-4 mb-2 px-3 py-2 rounded border border-border bg-base/40 flex flex-col gap-0.5">
+          <span className="text-dim text-xs font-mono uppercase tracking-widest">Last Update</span>
+          <span className="text-text text-xs font-mono">
+            {lastUpdated ? formatTime(lastUpdated) : '—'}
+          </span>
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 py-3 px-3 space-y-0.5">
