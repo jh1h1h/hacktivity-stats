@@ -11,10 +11,53 @@ import { useApi }    from './hooks/useApi'
 // ─── API Endpoints (JSONPlaceholder as demo) ──────────────────────────────────
 const REPORTS_URL  = '/api/hackerone/v1/hackers/hacktivity?page[size]=100'
 
+// ─── Clean API response ─────────────────────
+function cleanReports(data) {
+  data = flattenReports(data?.data)
+  data = data.filter(r => r.severity && r.title) // Only include reports with severity & title
+  return data
+}
+
+// ─── Flatten nested API response into table-friendly rows ─────────────────────
+function flattenReports(data) {
+  if (!Array.isArray(data)) return []
+  return data.map(item => ({
+    id:           item.id,
+    title:        item.attributes?.title,
+    substate:     item.attributes?.substate,
+    severity:     item.attributes?.severity_rating,
+    cwe:          item.attributes?.cwe,
+    votes:        item.attributes?.votes,
+    bounty:       item.attributes?.total_awarded_amount,
+    disclosed_at: item.attributes?.disclosed_at,
+    url:          item.attributes?.url,
+    reporter:     item.relationships?.reporter?.data?.attributes?.username,
+    program:      item.relationships?.program?.data?.attributes?.name,
+    program_url:  item.relationships?.program?.data?.attributes?.url,
+  }))
+}
+
+// ─── Severity colour helper ───────────────────────────────────────────────────
+const SEVERITY_STYLES = {
+  critical: { color: '#ff4d6a', bg: 'rgba(255,77,106,0.1)',   border: 'rgba(255,77,106,0.25)' },
+  high:     { color: '#ffb800', bg: 'rgba(255,184,0,0.1)',    border: 'rgba(255,184,0,0.25)'  },
+  medium:   { color: '#00c8ff', bg: 'rgba(0,200,255,0.08)',   border: 'rgba(0,200,255,0.2)'   },
+  low:      { color: '#00e5a0', bg: 'rgba(0,229,160,0.08)',   border: 'rgba(0,229,160,0.2)'   },
+  none:     { color: '#4a6080', bg: 'rgba(74,96,128,0.1)',    border: 'rgba(74,96,128,0.2)'   },
+}
+
+const SUBSTATE_STYLES = {
+  resolved:   { color: '#00e5a0' },
+  triaged:    { color: '#00c8ff' },
+  duplicate:  { color: '#4a6080' },
+  informative:{ color: '#4a6080' },
+  n_a:        { color: '#4a6080' },
+}
+
 // ─── Table column definitions ─────────────────────────────────────────────────
 const REPORTS_COLUMNS = [
-  { key: 'name', label: 'Name' },
-  { key: 'category', label: 'Category' },
+  { key: 'title', label: 'Title' },
+  { key: 'severity', label: 'Severity' },
   // { key: 'username', label: 'Handle',  render: v => `@${v}` },
   // { key: 'company',  label: 'Company', render: (_, row) => row.company?.name ?? '—' },
   // { key: 'postCount',label: 'Posts',
@@ -52,7 +95,9 @@ function LiveClock() {
 export default function App() {
   const [active, setActive] = useState('Overview')
 
-  const { data: reports, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = useApi(REPORTS_URL)
+  const { data: raw, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = useApi(REPORTS_URL)
+
+  const reports = useMemo(() => cleanReports(raw), [raw])
 
   const loading = rLoad
   const error   = rErr
@@ -221,11 +266,10 @@ export default function App() {
               {loading ? '—' : `${stats?.enrichedUsers?.length ?? 0} rows`}
             </span>
           </div> */}
-
           {/* ── Data table ───────────────────────────────────────────────── */}
           <DataTable
             columns={REPORTS_COLUMNS}
-            rows={reports?.data ?? []}
+            rows={reports}
             isLoading={loading}
           />
 
