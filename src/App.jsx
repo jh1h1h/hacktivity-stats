@@ -32,6 +32,7 @@ function flattenReports(data) {
     bounty:       item.attributes?.total_awarded_amount,
     disclosed:    item.attributes?.disclosed,
     url:          item.attributes?.url,
+    submitted_at: item.attributes?.submitted_at,
     reporter:     item.relationships?.reporter?.data?.attributes?.username,
     program:      item.relationships?.program?.data?.attributes?.name,
     program_url:  item.relationships?.program?.data?.attributes?.url,
@@ -57,8 +58,14 @@ const SUBSTATE_STYLES = {
 
 // ─── Table column definitions ─────────────────────────────────────────────────
 const REPORTS_COLUMNS = [
+  { key: 'cwe', label: 'CWE' },
   { key: 'title', label: 'Title' },
   { key: 'severity', label: 'Severity' },
+  { key: 'bounty', label: 'Bounty' },
+  { key: 'substate', label: 'Status' },
+  { key: 'reporter', label: 'Reporter' },
+  { key: 'program', label: 'Program' },
+  { key: 'submitted_at', label: 'Submitted', render: v => new Date(v).toLocaleDateString() },
   // { key: 'username', label: 'Handle',  render: v => `@${v}` },
   // { key: 'company',  label: 'Company', render: (_, row) => row.company?.name ?? '—' },
   // { key: 'postCount',label: 'Posts',
@@ -97,7 +104,6 @@ export default function App() {
   const [active, setActive] = useState('Overview')
 
   const { data: raw, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = usePaginatedApi(REPORTS_URL, TOTAL_PAGES)
-  console.log(raw)
 
   const reports = useMemo(() => cleanReports(raw), [raw])
 
