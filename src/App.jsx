@@ -9,32 +9,29 @@ import MiniBarChart  from './components/MiniBarChart'
 import { useApi }    from './hooks/useApi'
 
 // ─── API Endpoints (JSONPlaceholder as demo) ──────────────────────────────────
-const USERS_URL  = 'https://jsonplaceholder.typicode.com/users'
-const POSTS_URL  = 'https://jsonplaceholder.typicode.com/posts'
-const TODOS_URL  = 'https://jsonplaceholder.typicode.com/todos'
+const REPORTS_URL  = '/api/hackerone/v1/hackers/hacktivity?page[size]=100'
 
 // ─── Table column definitions ─────────────────────────────────────────────────
-const USER_COLUMNS = [
-  { key: 'id',       label: '#' },
-  { key: 'name',     label: 'Name' },
-  { key: 'username', label: 'Handle',  render: v => `@${v}` },
-  { key: 'email',    label: 'Email' },
-  { key: 'company',  label: 'Company', render: (_, row) => row.company?.name ?? '—' },
-  { key: 'postCount',label: 'Posts',
-    render: v => (
-      <span className="inline-flex items-center justify-center w-6 h-5 rounded text-xs bg-accent/10 text-accent border border-accent/20">
-        {v}
-      </span>
-    )
-  },
-  { key: 'done',     label: 'Completed',
-    render: v => (
-      <span className={`inline-flex items-center gap-1 text-xs font-mono ${v > 0 ? 'text-green' : 'text-dim'}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${v > 0 ? 'bg-green' : 'bg-muted'}`} />
-        {v}
-      </span>
-    )
-  },
+const REPORTS_COLUMNS = [
+  { key: 'name', label: 'Name' },
+  { key: 'category', label: 'Category' },
+  // { key: 'username', label: 'Handle',  render: v => `@${v}` },
+  // { key: 'company',  label: 'Company', render: (_, row) => row.company?.name ?? '—' },
+  // { key: 'postCount',label: 'Posts',
+  //   render: v => (
+  //     <span className="inline-flex items-center justify-center w-6 h-5 rounded text-xs bg-accent/10 text-accent border border-accent/20">
+  //       {v}
+  //     </span>
+  //   )
+  // },
+  // { key: 'done',     label: 'Completed',
+  //   render: v => (
+  //     <span className={`inline-flex items-center gap-1 text-xs font-mono ${v > 0 ? 'text-green' : 'text-dim'}`}>
+  //       <span className={`w-1.5 h-1.5 rounded-full ${v > 0 ? 'bg-green' : 'bg-muted'}`} />
+  //       {v}
+  //     </span>
+  //   )
+  // },
 ]
 
 // ─── Timestamp ────────────────────────────────────────────────────────────────
@@ -55,62 +52,58 @@ function LiveClock() {
 export default function App() {
   const [active, setActive] = useState('Overview')
 
-  const { data: users, loading: uLoad, error: uErr, lastUpdated: uTime, refetch: refetchUsers } = useApi(USERS_URL)
-  const { data: posts, loading: pLoad,               lastUpdated: pTime, refetch: refetchPosts } = useApi(POSTS_URL)
-  const { data: todos, loading: tLoad,               lastUpdated: tTime, refetch: refetchTodos } = useApi(TODOS_URL)
+  const { data: reports, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = useApi(REPORTS_URL)
 
-  const loading = uLoad || pLoad || tLoad
-  const error   = uErr
+  const loading = rLoad
+  const error   = rErr
 
   // Most recent successful fetch across all three endpoints
-  const lastUpdated = [uTime, pTime, tTime]
+  const lastUpdated = [rTime]
     .filter(Boolean)
     .sort((a, b) => b - a)[0] ?? null
 
   const handleRefresh = () => {
-    refetchUsers()
-    refetchPosts()
-    refetchTodos()
+    refetchReports()
   }
 
   // ── Aggregations ────────────────────────────────────────────────────────────
-  const stats = useMemo(() => {
-    if (!users || !posts || !todos) return null
+  // const stats = useMemo(() => {
+  //   if (!reports) return null
 
-    const postsByUser = posts.reduce((acc, p) => {
-      acc[p.userId] = (acc[p.userId] ?? 0) + 1
-      return acc
-    }, {})
+  //   const postsByUser = posts.reduce((acc, p) => {
+  //     acc[p.userId] = (acc[p.userId] ?? 0) + 1
+  //     return acc
+  //   }, {})
 
-    const completedByUser = todos.reduce((acc, t) => {
-      if (t.completed) acc[t.userId] = (acc[t.userId] ?? 0) + 1
-      return acc
-    }, {})
+  //   const completedByUser = todos.reduce((acc, t) => {
+  //     if (t.completed) acc[t.userId] = (acc[t.userId] ?? 0) + 1
+  //     return acc
+  //   }, {})
 
-    const enrichedUsers = users.map(u => ({
-      ...u,
-      postCount: postsByUser[u.id] ?? 0,
-      done:      completedByUser[u.id] ?? 0,
-    }))
+  //   const enrichedUsers = users.map(u => ({
+  //     ...u,
+  //     postCount: postsByUser[u.id] ?? 0,
+  //     done:      completedByUser[u.id] ?? 0,
+  //   }))
 
-    const completedTodos = todos.filter(t => t.completed).length
-    const completionRate = Math.round((completedTodos / todos.length) * 100)
+  //   const completedTodos = todos.filter(t => t.completed).length
+  //   const completionRate = Math.round((completedTodos / todos.length) * 100)
 
-    const topPosters = [...enrichedUsers]
-      .sort((a, b) => b.postCount - a.postCount)
-      .slice(0, 6)
-      .map(u => ({ name: u.username, value: u.postCount }))
+  //   const topPosters = [...enrichedUsers]
+  //     .sort((a, b) => b.postCount - a.postCount)
+  //     .slice(0, 6)
+  //     .map(u => ({ name: u.username, value: u.postCount }))
 
-    return {
-      totalUsers:      users.length,
-      totalPosts:      posts.length,
-      completedTodos,
-      completionRate,
-      avgPostsPerUser: Math.round(posts.length / users.length),
-      enrichedUsers,
-      topPosters,
-    }
-  }, [users, posts, todos])
+  //   return {
+  //     totalUsers:      users.length,
+  //     totalPosts:      posts.length,
+  //     completedTodos,
+  //     completionRate,
+  //     avgPostsPerUser: Math.round(posts.length / users.length),
+  //     enrichedUsers,
+  //     topPosters,
+  //   }
+  // }, [users, posts, todos])
 
   return (
     <div className="flex min-h-screen bg-base grid-bg font-sans overflow-hidden">
@@ -146,16 +139,16 @@ export default function App() {
           )}
 
           {/* Section label */}
-          <div className="flex items-center gap-3">
+          {/* <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-dim uppercase tracking-widest">System Metrics</span>
             <div className="flex-1 h-px bg-border" />
             <span className="text-xs font-mono text-dim">
               {loading ? 'loading…' : `${stats?.totalUsers ?? 0} entities tracked`}
             </span>
-          </div>
+          </div> */}
 
           {/* ── Stat cards ───────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Total Users"
               value={loading ? null : stats?.totalUsers}
@@ -189,18 +182,18 @@ export default function App() {
               trend="down"
               trendLabel="-1.2%"
             />
-          </div>
+          </div> */}
 
           {/* ── Charts row ───────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <MiniBarChart
               label="Top Posters by Volume"
               data={loading ? [] : (stats?.topPosters ?? [])}
               accentColor="#00c8ff"
-            />
+            /> */}
 
             {/* Summary panel */}
-            <div className="col-span-2 card-border rounded-xl border border-border p-5 flex flex-col gap-4">
+            {/* <div className="col-span-2 card-border rounded-xl border border-border p-5 flex flex-col gap-4">
               <span className="text-xs font-mono text-dim uppercase tracking-widest">Aggregate Summary</span>
               <div className="grid grid-cols-3 gap-4 flex-1">
                 {[
@@ -218,21 +211,21 @@ export default function App() {
                 Source · jsonplaceholder.typicode.com · Replace with your own endpoints in <code className="text-accent">src/App.jsx</code>
               </p>
             </div>
-          </div>
+          </div> */}
 
           {/* ── Section label ────────────────────────────────────────────── */}
-          <div className="flex items-center gap-3 pt-2">
+          {/* <div className="flex items-center gap-3 pt-2">
             <span className="text-xs font-mono text-dim uppercase tracking-widest">Entity Records</span>
             <div className="flex-1 h-px bg-border" />
             <span className="text-xs font-mono text-dim">
               {loading ? '—' : `${stats?.enrichedUsers?.length ?? 0} rows`}
             </span>
-          </div>
+          </div> */}
 
           {/* ── Data table ───────────────────────────────────────────────── */}
           <DataTable
-            columns={USER_COLUMNS}
-            rows={stats?.enrichedUsers ?? []}
+            columns={REPORTS_COLUMNS}
+            rows={reports?.data ?? []}
             isLoading={loading}
           />
 
