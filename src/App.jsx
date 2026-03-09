@@ -6,15 +6,16 @@ import Sidebar       from './components/Sidebar'
 import StatCard      from './components/StatCard'
 import DataTable     from './components/DataTable'
 import MiniBarChart  from './components/MiniBarChart'
-import { useApi }    from './hooks/useApi'
+import { usePaginatedApi } from './hooks/usePaginatedApi'
 
-// ─── API Endpoints (JSONPlaceholder as demo) ──────────────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
 const REPORTS_URL  = '/api/hackerone/v1/hackers/hacktivity?page[size]=100'
+const TOTAL_PAGES  = 20 // ← change this to fetch more/fewer pages (100 results each)
 
 // ─── Clean API response ─────────────────────
 function cleanReports(data) {
   data = flattenReports(data?.data)
-  data = data.filter(r => r.severity && r.title) // Only include reports with severity & title
+  data = data.filter(r => r.disclosed) // Only include reports with severity & title
   return data
 }
 
@@ -29,7 +30,7 @@ function flattenReports(data) {
     cwe:          item.attributes?.cwe,
     votes:        item.attributes?.votes,
     bounty:       item.attributes?.total_awarded_amount,
-    disclosed_at: item.attributes?.disclosed_at,
+    disclosed:    item.attributes?.disclosed,
     url:          item.attributes?.url,
     reporter:     item.relationships?.reporter?.data?.attributes?.username,
     program:      item.relationships?.program?.data?.attributes?.name,
@@ -95,7 +96,8 @@ function LiveClock() {
 export default function App() {
   const [active, setActive] = useState('Overview')
 
-  const { data: raw, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = useApi(REPORTS_URL)
+  const { data: raw, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = usePaginatedApi(REPORTS_URL, TOTAL_PAGES)
+  console.log(raw)
 
   const reports = useMemo(() => cleanReports(raw), [raw])
 
