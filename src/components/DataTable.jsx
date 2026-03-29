@@ -3,7 +3,7 @@
 export default function DataTable({ columns = [], rows = [], isLoading = false }) {
   if (isLoading) {
     return (
-      <div className="card-border rounded-xl border border-border overflow-hidden">
+      <div className="card-border rounded-xl border border-border overflow-y-hidden animate-fade-in overflow-x-auto">
         <div className="p-4 border-b border-border flex gap-2">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-3 bg-muted/60 rounded animate-pulse" style={{ width: `${60 + i * 15}px` }} />
@@ -21,7 +21,7 @@ export default function DataTable({ columns = [], rows = [], isLoading = false }
   }
 
   return (
-    <div className="card-border rounded-xl border border-border overflow-hidden animate-fade-in">
+    <div className="card-border rounded-xl border border-border overflow-y-hidden animate-fade-in overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="border-b border-border">
           <tr>
