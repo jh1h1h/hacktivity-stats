@@ -94,7 +94,7 @@ function LiveClock() {
   })
   return (
     <span className="font-mono text-xs text-dim tabular-nums">
-      {time.toUTCString().replace(' GMT', ' UTC')}
+      {time.toUTCString()}
     </span>
   )
 }

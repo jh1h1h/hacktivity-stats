@@ -32,7 +32,8 @@ const NAV = [
 
 function formatTime(date) {
   if (!date) return null
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return date.toUTCString()
+  // return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 export default function Sidebar({ active, setActive, loading = false, lastUpdated = null }) {
