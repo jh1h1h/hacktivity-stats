@@ -6,7 +6,7 @@ import Sidebar       from './components/Sidebar'
 import StatCard      from './components/StatCard'
 import DataTable     from './components/DataTable'
 import MiniBarChart  from './components/MiniBarChart'
-import { usePaginatedApi } from './hooks/usePaginatedApi'
+import { useCachedPaginatedApi } from './hooks/useCachedPaginatedApi'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const REPORTS_URL  = '/api/hackerone/v1/hackers/hacktivity?page[size]=100'
@@ -103,7 +103,7 @@ function LiveClock() {
 export default function App() {
   const [active, setActive] = useState('Overview')
 
-  const { data: raw, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = usePaginatedApi(REPORTS_URL, TOTAL_PAGES)
+  const { data: raw, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = useCachedPaginatedApi(REPORTS_URL, TOTAL_PAGES)
 
   const reports = useMemo(() => cleanReports(raw), [raw])
 
