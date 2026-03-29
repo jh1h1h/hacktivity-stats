@@ -1,25 +1,21 @@
 // src/App.jsx  — Observatory Dashboard
-// Data source: JSONPlaceholder (swap for your real API)
+// Data source: HackerOne Hacktivity API, cached in Firebase Firestore
 
 import { useState, useMemo } from 'react'
-import Sidebar       from './components/Sidebar'
-import StatCard      from './components/StatCard'
-import DataTable     from './components/DataTable'
-import MiniBarChart  from './components/MiniBarChart'
+import Sidebar      from './components/Sidebar'
+import DataTable    from './components/DataTable'
 import { useCachedPaginatedApi } from './hooks/useCachedPaginatedApi'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const REPORTS_URL  = '/api/hackerone/v1/hackers/hacktivity?page[size]=100'
-const TOTAL_PAGES  = 20 // ← change this to fetch more/fewer pages (100 results each)
+const REPORTS_URL = '/api/hackerone/v1/hackers/hacktivity?page[size]=100'
+const TOTAL_PAGES = 99
 
-// ─── Clean API response ─────────────────────
+// ─── Clean API response ───────────────────────────────────────────────────────
 function cleanReports(data) {
-  data = flattenReports(data?.data)
-  data = data.filter(r => r.disclosed) // Only include reports with severity & title
-  return data
+  const flat = flattenReports(data?.data)
+  return flat.filter(r => r.severity && r.title)
 }
 
-// ─── Flatten nested API response into table-friendly rows ─────────────────────
 function flattenReports(data) {
   if (!Array.isArray(data)) return []
   return data.map(item => ({
@@ -30,9 +26,8 @@ function flattenReports(data) {
     cwe:          item.attributes?.cwe,
     votes:        item.attributes?.votes,
     bounty:       item.attributes?.total_awarded_amount,
-    disclosed:    item.attributes?.disclosed,
+    disclosed_at: item.attributes?.disclosed_at,
     url:          item.attributes?.url,
-    submitted_at: item.attributes?.submitted_at,
     reporter:     item.relationships?.reporter?.data?.attributes?.username,
     program:      item.relationships?.program?.data?.attributes?.name,
     program_url:  item.relationships?.program?.data?.attributes?.url,
@@ -41,48 +36,98 @@ function flattenReports(data) {
 
 // ─── Severity colour helper ───────────────────────────────────────────────────
 const SEVERITY_STYLES = {
-  critical: { color: '#ff4d6a', bg: 'rgba(255,77,106,0.1)',   border: 'rgba(255,77,106,0.25)' },
-  high:     { color: '#ffb800', bg: 'rgba(255,184,0,0.1)',    border: 'rgba(255,184,0,0.25)'  },
-  medium:   { color: '#00c8ff', bg: 'rgba(0,200,255,0.08)',   border: 'rgba(0,200,255,0.2)'   },
-  low:      { color: '#00e5a0', bg: 'rgba(0,229,160,0.08)',   border: 'rgba(0,229,160,0.2)'   },
-  none:     { color: '#4a6080', bg: 'rgba(74,96,128,0.1)',    border: 'rgba(74,96,128,0.2)'   },
+  critical: { color: '#ff4d6a', bg: 'rgba(255,77,106,0.1)',  border: 'rgba(255,77,106,0.25)' },
+  high:     { color: '#ffb800', bg: 'rgba(255,184,0,0.1)',   border: 'rgba(255,184,0,0.25)'  },
+  medium:   { color: '#00c8ff', bg: 'rgba(0,200,255,0.08)',  border: 'rgba(0,200,255,0.2)'   },
+  low:      { color: '#00e5a0', bg: 'rgba(0,229,160,0.08)',  border: 'rgba(0,229,160,0.2)'   },
+  none:     { color: '#4a6080', bg: 'rgba(74,96,128,0.1)',   border: 'rgba(74,96,128,0.2)'   },
 }
 
 const SUBSTATE_STYLES = {
-  resolved:   { color: '#00e5a0' },
-  triaged:    { color: '#00c8ff' },
-  duplicate:  { color: '#4a6080' },
-  informative:{ color: '#4a6080' },
-  n_a:        { color: '#4a6080' },
+  resolved:    { color: '#00e5a0' },
+  triaged:     { color: '#00c8ff' },
+  duplicate:   { color: '#4a6080' },
+  informative: { color: '#4a6080' },
+  n_a:         { color: '#4a6080' },
 }
 
 // ─── Table column definitions ─────────────────────────────────────────────────
 const REPORTS_COLUMNS = [
-  { key: 'cwe', label: 'CWE' },
-  { key: 'title', label: 'Title' },
-  { key: 'severity', label: 'Severity' },
-  { key: 'bounty', label: 'Bounty' },
-  { key: 'substate', label: 'Status' },
-  { key: 'reporter', label: 'Reporter' },
-  { key: 'program', label: 'Program' },
-  { key: 'submitted_at', label: 'Submitted', render: v => new Date(v).toLocaleDateString() },
-  // { key: 'username', label: 'Handle',  render: v => `@${v}` },
-  // { key: 'company',  label: 'Company', render: (_, row) => row.company?.name ?? '—' },
-  // { key: 'postCount',label: 'Posts',
-  //   render: v => (
-  //     <span className="inline-flex items-center justify-center w-6 h-5 rounded text-xs bg-accent/10 text-accent border border-accent/20">
-  //       {v}
-  //     </span>
-  //   )
-  // },
-  // { key: 'done',     label: 'Completed',
-  //   render: v => (
-  //     <span className={`inline-flex items-center gap-1 text-xs font-mono ${v > 0 ? 'text-green' : 'text-dim'}`}>
-  //       <span className={`w-1.5 h-1.5 rounded-full ${v > 0 ? 'bg-green' : 'bg-muted'}`} />
-  //       {v}
-  //     </span>
-  //   )
-  // },
+  {
+    key: 'severity',
+    label: 'Severity',
+    render: v => {
+      const s = SEVERITY_STYLES[v?.toLowerCase()] ?? SEVERITY_STYLES.none
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono uppercase tracking-wide"
+          style={{ color: s.color, background: s.bg, border: `1px solid ${s.border}` }}>
+          {v ?? '—'}
+        </span>
+      )
+    },
+  },
+  {
+    key: 'title',
+    label: 'Title',
+    render: (v, row) => (
+      <a href={row.url} target="_blank" rel="noreferrer"
+        className="text-text hover:text-accent transition-colors line-clamp-1"
+        title={v}>
+        {v}
+      </a>
+    ),
+  },
+  {
+    key: 'program',
+    label: 'Program',
+    render: (v, row) => (
+      <a href={row.program_url} target="_blank" rel="noreferrer"
+        className="text-dim hover:text-accent transition-colors whitespace-nowrap">
+        {v ?? '—'}
+      </a>
+    ),
+  },
+  {
+    key: 'reporter',
+    label: 'Reporter',
+    render: v => <span className="text-dim font-mono">@{v ?? '—'}</span>,
+  },
+  {
+    key: 'cwe',
+    label: 'CWE',
+    render: v => <span className="text-dim">{v ?? '—'}</span>,
+  },
+  {
+    key: 'substate',
+    label: 'State',
+    render: v => {
+      const s = SUBSTATE_STYLES[v?.toLowerCase()] ?? SUBSTATE_STYLES.n_a
+      return (
+        <span className="font-mono text-xs uppercase" style={{ color: s.color }}>
+          {v ?? '—'}
+        </span>
+      )
+    },
+  },
+  {
+    key: 'bounty',
+    label: 'Bounty',
+    render: v => v
+      ? <span className="text-green font-mono">${Number(v).toLocaleString()}</span>
+      : <span className="text-dim font-mono">—</span>,
+  },
+  {
+    key: 'votes',
+    label: 'Votes',
+    render: v => <span className="font-mono text-dim">{v ?? 0}</span>,
+  },
+  {
+    key: 'disclosed_at',
+    label: 'Disclosed',
+    render: v => v
+      ? <span className="font-mono text-dim whitespace-nowrap">{new Date(v).toLocaleDateString()}</span>
+      : <span className="text-dim">—</span>,
+  },
 ]
 
 // ─── Timestamp ────────────────────────────────────────────────────────────────
@@ -94,8 +139,28 @@ function LiveClock() {
   })
   return (
     <span className="font-mono text-xs text-dim tabular-nums">
-      {time.toUTCString()}
+      {time.toUTCString().replace(' GMT', ' UTC')}
     </span>
+  )
+}
+
+// ─── Sync status badge ────────────────────────────────────────────────────────
+function SyncBadge({ syncing, syncProgress }) {
+  if (!syncing) return null
+  const pct = Math.round((syncProgress.fetched / syncProgress.total) * 100)
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded border border-accent/20 bg-accent/5">
+      {/* Animated progress bar */}
+      <div className="w-20 h-1 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-accent rounded-full transition-all duration-300"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-xs font-mono text-accent tabular-nums">
+        {syncProgress.fetched}/{syncProgress.total} pages
+      </span>
+    </div>
   )
 }
 
@@ -103,64 +168,15 @@ function LiveClock() {
 export default function App() {
   const [active, setActive] = useState('Overview')
 
-  const { data: raw, loading: rLoad, error: rErr, lastUpdated: rTime, refetch: refetchReports } = useCachedPaginatedApi(REPORTS_URL, TOTAL_PAGES)
+  const { data: raw, loading, syncing, syncProgress, error, lastUpdated, refetch } =
+    useCachedPaginatedApi(REPORTS_URL, TOTAL_PAGES)
 
   const reports = useMemo(() => cleanReports(raw), [raw])
 
-  const loading = rLoad
-  const error   = rErr
-
-  // Most recent successful fetch across all three endpoints
-  const lastUpdated = [rTime]
-    .filter(Boolean)
-    .sort((a, b) => b - a)[0] ?? null
-
-  const handleRefresh = () => {
-    refetchReports()
-  }
-
-  // ── Aggregations ────────────────────────────────────────────────────────────
-  // const stats = useMemo(() => {
-  //   if (!reports) return null
-
-  //   const postsByUser = posts.reduce((acc, p) => {
-  //     acc[p.userId] = (acc[p.userId] ?? 0) + 1
-  //     return acc
-  //   }, {})
-
-  //   const completedByUser = todos.reduce((acc, t) => {
-  //     if (t.completed) acc[t.userId] = (acc[t.userId] ?? 0) + 1
-  //     return acc
-  //   }, {})
-
-  //   const enrichedUsers = users.map(u => ({
-  //     ...u,
-  //     postCount: postsByUser[u.id] ?? 0,
-  //     done:      completedByUser[u.id] ?? 0,
-  //   }))
-
-  //   const completedTodos = todos.filter(t => t.completed).length
-  //   const completionRate = Math.round((completedTodos / todos.length) * 100)
-
-  //   const topPosters = [...enrichedUsers]
-  //     .sort((a, b) => b.postCount - a.postCount)
-  //     .slice(0, 6)
-  //     .map(u => ({ name: u.username, value: u.postCount }))
-
-  //   return {
-  //     totalUsers:      users.length,
-  //     totalPosts:      posts.length,
-  //     completedTodos,
-  //     completionRate,
-  //     avgPostsPerUser: Math.round(posts.length / users.length),
-  //     enrichedUsers,
-  //     topPosters,
-  //   }
-  // }, [users, posts, todos])
-
   return (
     <div className="flex min-h-screen bg-base grid-bg font-sans overflow-hidden">
-      <Sidebar active={active} setActive={setActive} loading={loading} lastUpdated={lastUpdated} />
+      {/* Sidebar gets syncing state, not loading, so it shows "last update" immediately */}
+      <Sidebar active={active} setActive={setActive} loading={syncing} lastUpdated={lastUpdated} />
 
       <div className="flex-1 flex flex-col min-w-0">
 
@@ -171,13 +187,15 @@ export default function App() {
             <span className="text-dim text-xs font-mono">/ overview</span>
           </div>
           <div className="flex items-center gap-5">
+            <SyncBadge syncing={syncing} syncProgress={syncProgress} />
             <LiveClock />
             <button
-              onClick={handleRefresh}
-              disabled={loading}
+              onClick={refetch}
+              disabled={syncing}
+              title="Fetch latest from HackerOne API and merge into cache"
               className="text-xs font-mono text-dim hover:text-accent transition-colors border border-border hover:border-accent/40 rounded px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ↻ REFRESH
+              {syncing ? '⟳ SYNCING…' : '↻ UPDATE DATA'}
             </button>
           </div>
         </header>
@@ -191,90 +209,21 @@ export default function App() {
             </div>
           )}
 
-          {/* Section label */}
-          {/* <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-dim uppercase tracking-widest">System Metrics</span>
+          {/* Section label — shows sync result once done */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-dim uppercase tracking-widest">Hacktivity</span>
             <div className="flex-1 h-px bg-border" />
             <span className="text-xs font-mono text-dim">
-              {loading ? 'loading…' : `${stats?.totalUsers ?? 0} entities tracked`}
+              {loading
+                ? 'loading from cache…'
+                : syncing
+                  ? `syncing… ${syncProgress.fetched} / ${syncProgress.total} pages`
+                  : `${reports.length} reports`
+              }
             </span>
-          </div> */}
+          </div>
 
-          {/* ── Stat cards ───────────────────────────────────────────────── */}
-          {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              label="Total Users"
-              value={loading ? null : stats?.totalUsers}
-              loading={loading}
-              accent="accent"
-              trend="up"
-              trendLabel="+2.4%"
-            />
-            <StatCard
-              label="Posts Published"
-              value={loading ? null : stats?.totalPosts}
-              loading={loading}
-              accent="green"
-              trend="up"
-              trendLabel="+8.1%"
-            />
-            <StatCard
-              label="Tasks Completed"
-              value={loading ? null : stats?.completedTodos}
-              loading={loading}
-              accent="amber"
-              trend="neutral"
-              trendLabel="±0.3%"
-            />
-            <StatCard
-              label="Completion Rate"
-              value={loading ? null : stats?.completionRate}
-              suffix="%"
-              loading={loading}
-              accent="red"
-              trend="down"
-              trendLabel="-1.2%"
-            />
-          </div> */}
-
-          {/* ── Charts row ───────────────────────────────────────────────── */}
-          {/* <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <MiniBarChart
-              label="Top Posters by Volume"
-              data={loading ? [] : (stats?.topPosters ?? [])}
-              accentColor="#00c8ff"
-            /> */}
-
-            {/* Summary panel */}
-            {/* <div className="col-span-2 card-border rounded-xl border border-border p-5 flex flex-col gap-4">
-              <span className="text-xs font-mono text-dim uppercase tracking-widest">Aggregate Summary</span>
-              <div className="grid grid-cols-3 gap-4 flex-1">
-                {[
-                  { k: 'Avg posts / user', v: loading ? '···' : stats?.avgPostsPerUser },
-                  { k: 'Total tasks',      v: loading ? '···' : todos?.length },
-                  { k: 'Pending tasks',    v: loading ? '···' : (todos?.length ?? 0) - (stats?.completedTodos ?? 0) },
-                ].map(({ k, v }) => (
-                  <div key={k} className="flex flex-col gap-2 p-4 rounded-lg bg-base/60 border border-border/60">
-                    <span className="text-xs font-mono text-dim">{k}</span>
-                    <span className="text-2xl font-bold font-mono text-bright tabular-nums">{v}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-dim font-mono border-t border-border pt-3">
-                Source · jsonplaceholder.typicode.com · Replace with your own endpoints in <code className="text-accent">src/App.jsx</code>
-              </p>
-            </div>
-          </div> */}
-
-          {/* ── Section label ────────────────────────────────────────────── */}
-          {/* <div className="flex items-center gap-3 pt-2">
-            <span className="text-xs font-mono text-dim uppercase tracking-widest">Entity Records</span>
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-xs font-mono text-dim">
-              {loading ? '—' : `${stats?.enrichedUsers?.length ?? 0} rows`}
-            </span>
-          </div> */}
-          {/* ── Data table ───────────────────────────────────────────────── */}
+          {/* Table: uses loading (skeleton on first open), not syncing */}
           <DataTable
             columns={REPORTS_COLUMNS}
             rows={reports}
