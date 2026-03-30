@@ -7,7 +7,8 @@ Dashboard to give a informative summary and stats from hackerone's recent disclo
 H1_USERNAME=your_username_here
 H1_TOKEN=your_token_here
 ```
-2. Run these commands in cmd
+2. Add firebase_config.json in backend/
+3. Run these commands in cmd
 ```cmd
 npm i
 npm run dev
