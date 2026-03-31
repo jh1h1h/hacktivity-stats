@@ -51,6 +51,18 @@ const SUBSTATE_STYLES = {
   n_a:         { color: '#4a6080' },
 }
 
+const FILTER_FIELDS = [
+  { key: 'substate', label: 'State' },
+  { key: 'severity', label: 'Severity' },
+]
+
+const EMPTY_FILTER_VALUE = '__empty__'
+
+const normalizeFilterValue = value => {
+  if (value == null || value === '') return EMPTY_FILTER_VALUE
+  return String(value).toLowerCase()
+}
+
 // ─── Table column definitions ─────────────────────────────────────────────────
 const REPORTS_COLUMNS = [
   {
@@ -167,11 +179,75 @@ function SyncBadge({ syncing, syncProgress }) {
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [active, setActive] = useState('Overview')
+  const [filters, setFilters] = useState(() =>
+    FILTER_FIELDS.reduce((acc, field) => {
+      acc[field.key] = []
+      return acc
+    }, {})
+  )
 
   const { data: raw, loading, syncing, syncProgress, error, lastUpdated, refetch } =
     useCachedPaginatedApi(REPORTS_URL, TOTAL_PAGES)
 
   const reports = useMemo(() => cleanReports(raw), [raw])
+
+  const filterOptions = useMemo(() => {
+    const optionsByField = {}
+
+    FILTER_FIELDS.forEach(({ key }) => {
+      const unique = new Map()
+
+      reports.forEach(report => {
+        const rawValue = report[key]
+        const normalized = normalizeFilterValue(rawValue)
+        if (!unique.has(normalized)) {
+          unique.set(normalized, rawValue ?? '—')
+        }
+      })
+
+      optionsByField[key] = Array.from(unique.entries())
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label)))
+    })
+
+    return optionsByField
+  }, [reports])
+
+  const filteredReports = useMemo(() => {
+    return reports.filter(report =>
+      FILTER_FIELDS.every(({ key }) => {
+        const activeValues = filters[key] ?? []
+        if (activeValues.length === 0) return true
+        return activeValues.includes(normalizeFilterValue(report[key]))
+      })
+    )
+  }, [reports, filters])
+
+  const hasActiveFilters = FILTER_FIELDS.some(({ key }) => (filters[key] ?? []).length > 0)
+
+  const toggleFilter = (fieldKey, value) => {
+    setFilters(prev => {
+      const current = prev[fieldKey] ?? []
+      const nextValues = current.includes(value)
+        ? current.filter(item => item !== value)
+        : [...current, value]
+
+      return { ...prev, [fieldKey]: nextValues }
+    })
+  }
+
+  const clearFieldFilter = fieldKey => {
+    setFilters(prev => ({ ...prev, [fieldKey]: [] }))
+  }
+
+  const clearAllFilters = () => {
+    setFilters(
+      FILTER_FIELDS.reduce((acc, field) => {
+        acc[field.key] = []
+        return acc
+      }, {})
+    )
+  }
 
   return (
     <div className="flex min-h-screen bg-base grid-bg font-sans overflow-hidden">
@@ -218,15 +294,70 @@ export default function App() {
                 ? 'loading from cache…'
                 : syncing
                   ? `syncing… ${syncProgress.fetched} / ${syncProgress.total} pages`
-                  : `${reports.length} reports`
+                  : hasActiveFilters
+                    ? `${filteredReports.length} / ${reports.length} reports`
+                    : `${reports.length} reports`
               }
             </span>
           </div>
 
+          {!loading && (
+            <section className="card-border rounded-xl border border-border p-4 bg-surface/30 animate-fade-in">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <span className="text-xs font-mono text-dim uppercase tracking-widest">Filters</span>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearAllFilters}
+                    className="text-xs font-mono text-dim hover:text-accent transition-colors border border-border hover:border-accent/40 rounded px-2 py-1"
+                  >
+                    CLEAR ALL
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {FILTER_FIELDS.map(({ key, label }) => (
+                  <div key={key} className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-mono text-dim uppercase tracking-widest">{label}</span>
+                      {(filters[key] ?? []).length > 0 && (
+                        <button
+                          onClick={() => clearFieldFilter(key)}
+                          className="text-xs font-mono text-dim hover:text-accent transition-colors"
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {(filterOptions[key] ?? []).map(option => {
+                        const selected = (filters[key] ?? []).includes(option.value)
+                        return (
+                          <button
+                            key={option.value}
+                            onClick={() => toggleFilter(key, option.value)}
+                            className={`px-2 py-1 rounded text-xs font-mono border transition-colors ${
+                              selected
+                                ? 'text-accent border-accent/40 bg-accent/10'
+                                : 'text-dim border-border hover:text-text hover:border-accent/30'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Table: uses loading (skeleton on first open), not syncing */}
           <DataTable
             columns={REPORTS_COLUMNS}
-            rows={reports}
+            rows={filteredReports}
             isLoading={loading}
           />
 
