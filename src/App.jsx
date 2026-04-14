@@ -179,6 +179,7 @@ function SyncBadge({ syncing, syncProgress }) {
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [active, setActive] = useState('Overview')
+  const [sortConfig, setSortConfig] = useState({ key: 'disclosed_at', direction: 'desc' })
   const [filters, setFilters] = useState(() =>
     FILTER_FIELDS.reduce((acc, field) => {
       acc[field.key] = []
@@ -223,6 +224,18 @@ export default function App() {
     )
   }, [reports, filters])
 
+  const sortedReports = useMemo(() => {
+    if (sortConfig.key !== 'disclosed_at') return filteredReports
+
+    const sorted = [...filteredReports]
+    sorted.sort((a, b) => {
+      const aTs = a.disclosed_at ? new Date(a.disclosed_at).getTime() : 0
+      const bTs = b.disclosed_at ? new Date(b.disclosed_at).getTime() : 0
+      return sortConfig.direction === 'asc' ? aTs - bTs : bTs - aTs
+    })
+    return sorted
+  }, [filteredReports, sortConfig])
+
   const hasActiveFilters = FILTER_FIELDS.some(({ key }) => (filters[key] ?? []).length > 0)
 
   const toggleFilter = (fieldKey, value) => {
@@ -248,6 +261,21 @@ export default function App() {
       }, {})
     )
   }
+
+  const handleSort = (key) => {
+    if (key !== 'disclosed_at') return
+
+    setSortConfig(prev => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+      }
+      return { key, direction: 'desc' }
+    })
+  }
+
+  const tableColumns = useMemo(() => (
+    REPORTS_COLUMNS.map(col => col.key === 'disclosed_at' ? { ...col, sortable: true } : col)
+  ), [])
 
   return (
     <div className="flex min-h-screen bg-base grid-bg font-sans overflow-hidden">
@@ -356,9 +384,12 @@ export default function App() {
 
           {/* Table: uses loading (skeleton on first open), not syncing */}
           <DataTable
-            columns={REPORTS_COLUMNS}
-            rows={filteredReports}
+            columns={tableColumns}
+            rows={sortedReports}
             isLoading={loading}
+            sortKey={sortConfig.key}
+            sortDirection={sortConfig.direction}
+            onSort={handleSort}
           />
 
           <div className="pb-2 text-center text-xs font-mono text-muted">

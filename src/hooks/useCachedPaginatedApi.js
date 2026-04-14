@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { db } from '../../backend/firebase'
-import { doc, getDoc, setDoc, getDocs, collection, writeBatch } from 'firebase/firestore'
+import { doc, getDoc, writeBatch } from 'firebase/firestore'
 
 const RATE_LIMIT_MS = 350
 const CHUNK_SIZE    = 400  // items per Firestore document (~keeps each doc well under 1MB)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+const isDisclosedReport = (item) => item?.attributes?.disclosed === true
 
 // ── Firestore helpers ─────────────────────────────────────────────────────────
 
@@ -22,8 +24,10 @@ async function readAllChunks() {
     const chunks = await Promise.all(
       Array.from({ length: chunkCount }, (_, i) => getDoc(chunkRef(i)))
     )
-    const items = chunks.flatMap(snap => snap.exists() ? snap.data().items : [])
-    console.log(`[cache] loaded ${items.length} items across ${chunkCount} chunks (saved ${new Date(savedAt).toLocaleTimeString()})`)
+    const items = chunks
+      .flatMap(snap => snap.exists() ? snap.data().items : [])
+      .filter(isDisclosedReport)
+    console.log(`[cache] loaded ${items.length} disclosed items across ${chunkCount} chunks (saved ${new Date(savedAt).toLocaleTimeString()})`)
     return { items, savedAt }
   } catch (err) {
     console.warn('[cache] read failed:', err.message)
@@ -33,9 +37,10 @@ async function readAllChunks() {
 
 async function writeAllChunks(items) {
   try {
+    const disclosedItems = items.filter(isDisclosedReport)
     const chunks = []
-    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-      chunks.push(items.slice(i, i + CHUNK_SIZE))
+    for (let i = 0; i < disclosedItems.length; i += CHUNK_SIZE) {
+      chunks.push(disclosedItems.slice(i, i + CHUNK_SIZE))
     }
 
     // Firestore batches are limited to 500 ops each
@@ -52,10 +57,10 @@ async function writeAllChunks(items) {
     }
 
     // Write meta document in the same final batch
-    batch.set(metaRef(), { savedAt: Date.now(), chunkCount: chunks.length, totalItems: items.length })
+    batch.set(metaRef(), { savedAt: Date.now(), chunkCount: chunks.length, totalItems: disclosedItems.length })
     await batch.commit()
 
-    console.log(`[cache] wrote ${items.length} items across ${chunks.length} chunks`)
+    console.log(`[cache] wrote ${disclosedItems.length} disclosed items across ${chunks.length} chunks`)
   } catch (err) {
     console.warn('[cache] write failed:', err.message)
   }
@@ -95,22 +100,33 @@ export function useCachedPaginatedApi(baseUrl, totalPages = 3, options = {}) {
     return allItems
   }, [baseUrl, totalPages])
 
+  const loadFromFirestore = useCallback(async () => {
+    const cached = await readAllChunks()
+    if (!cached) {
+      console.log('[cache] firestore returned no documents')
+      setData({ data: [] })
+      setLastUpdated(null)
+      return null
+    }
+
+    console.log('[cache] firestore payload:', cached)
+    setData({ data: cached.items })
+    setLastUpdated(new Date(cached.savedAt))
+    return cached
+  }, [])
+
   // On mount: read Firestore only, no API call
   const initialLoad = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const cached = await readAllChunks()
-      if (cached) {
-        setData({ data: cached.items })
-        setLastUpdated(new Date(cached.savedAt))
-      }
+      await loadFromFirestore()
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [loadFromFirestore])
 
   // On refresh: fetch API in background, merge new IDs, update cache + UI
   const sync = useCallback(async () => {
@@ -128,21 +144,21 @@ export function useCachedPaginatedApi(baseUrl, totalPages = 3, options = {}) {
         setSyncProgress(prev => ({ ...prev, fetched: page }))
       })
 
-      const newItems = fetched.filter(item => !existingIds.has(String(item.id)))
+      const disclosedFetched = fetched.filter(isDisclosedReport)
+      const newItems = disclosedFetched.filter(item => !existingIds.has(String(item.id)))
       const merged   = [...existingItems, ...newItems]
 
-      console.log(`[sync] ${fetched.length} fetched · ${newItems.length} new · ${merged.length} total`)
+      console.log(`[sync] ${fetched.length} fetched · ${disclosedFetched.length} disclosed · ${newItems.length} new · ${merged.length} total`)
       setSyncProgress(prev => ({ ...prev, newItems: newItems.length }))
 
       await writeAllChunks(merged)
-      setData({ data: merged })
-      setLastUpdated(new Date())
+      await loadFromFirestore()
     } catch (err) {
       setError(err.message)
     } finally {
       setSyncing(false)
     }
-  }, [syncing, totalPages, fetchFromApi])
+  }, [syncing, totalPages, fetchFromApi, loadFromFirestore])
 
   useEffect(() => { initialLoad() }, [initialLoad])
 

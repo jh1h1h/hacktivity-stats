@@ -1,6 +1,13 @@
 // src/components/DataTable.jsx
 
-export default function DataTable({ columns = [], rows = [], isLoading = false }) {
+export default function DataTable({
+  columns = [],
+  rows = [],
+  isLoading = false,
+  sortKey = null,
+  sortDirection = 'asc',
+  onSort,
+}) {
   if (isLoading) {
     return (
       <div className="card-border rounded-xl border border-border overflow-y-hidden animate-fade-in overflow-x-auto">
@@ -27,7 +34,20 @@ export default function DataTable({ columns = [], rows = [], isLoading = false }
           <tr>
             {columns.map(col => (
               <th key={col.key} className="px-4 py-3 text-left text-xs font-mono text-dim uppercase tracking-widest whitespace-nowrap">
-                {col.label}
+                {col.sortable && onSort ? (
+                  <button
+                    type="button"
+                    onClick={() => onSort(col.key)}
+                    className="inline-flex items-center gap-1 hover:text-accent transition-colors"
+                  >
+                    <span>{col.label}</span>
+                    {sortKey === col.key && (
+                      <span>{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                    )}
+                  </button>
+                ) : (
+                  col.label
+                )}
               </th>
             ))}
           </tr>
